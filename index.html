@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Handwritten Contact to VCF Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #444;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        input[type="file"] {
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .status.visible {
+            display: block;
+        }
+
+        .status-text {
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .progress {
+            color: #667eea;
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .countdown {
+            color: #e74c3c;
+            font-weight: 700;
+            font-size: 18px;
+            margin-top: 10px;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            display: none;
+        }
+
+        .download-btn.visible {
+            display: block;
+        }
+
+        .error {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .success {
+            color: #27ae60;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>📱 Contact List Converter</h1>
+        <p class="subtitle">Convert handwritten contact images to VCF file using Gemini Vision</p>
+
+        <div class="input-group">
+            <label for="cityInput">City Name</label>
+            <input type="text" id="cityInput" value="Patan" placeholder="Enter city name">
+        </div>
+
+        <div class="input-group">
+            <label for="apiKeyInput">Gemini API Key</label>
+            <input type="password" id="apiKeyInput" placeholder="Paste your Gemini API key here">
+        </div>
+
+        <div class="input-group">
+            <label for="fileInput">Select Contact Images</label>
+            <input type="file" id="fileInput" multiple accept="image/*">
+        </div>
+
+        <button id="generateBtn" onclick="startProcessing()">Generate VCF</button>
+
+        <div class="status" id="statusBox">
+            <div class="progress" id="progressText"></div>
+            <div class="status-text" id="statusText"></div>
+            <div class="countdown" id="countdownText"></div>
+        </div>
+
+        <button class="download-btn" id="downloadBtn" onclick="downloadVCF()">📥 Download contacts.vcf</button>
+    </div>
+
+    <script>
+        let globalContacts = [];
+        let globalContactIndex = 1;
+        let currentImageIndex = 0;
+        let totalImages = 0;
+        let imageFiles = [];
+        let apiKey = '';
+        let cityName = '';
+        let vcfData = '';
+        let countdownInterval = null;
+
+        async function startProcessing() {
+            const fileInput = document.getElementById('fileInput');
+            apiKey = document.getElementById('apiKeyInput').value.trim();
+            cityName = document.getElementById('cityInput').value.trim();
+
+            if (!apiKey) {
+                alert('Please enter your Gemini API key');
+                return;
+            }
+
+            if (!cityName) {
+                alert('Please enter a city name');
+                return;
+            }
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('Please select at least one image');
+                return;
+            }
+
+            imageFiles = Array.from(fileInput.files);
+            totalImages = imageFiles.length;
+            currentImageIndex = 0;
+            globalContacts = [];
+            globalContactIndex = 1;
+
+            document.getElementById('generateBtn').disabled = true;
+            document.getElementById('statusBox').classList.add('visible');
+            document.getElementById('downloadBtn').classList.remove('visible');
+
+            await processImages();
+        }
+
+        async function processImages() {
+            while (currentImageIndex < totalImages) {
+                updateProgress();
+
+                const file = imageFiles[currentImageIndex];
+                const base64Image = await fileToBase64(file);
+
+                const success = await processImageWithRetry(base64Image);
+
+                if (!success) {
+                    return;
+                }
+
+                currentImageIndex++;
+            }
+
+            finishProcessing();
+        }
+
+        async function processImageWithRetry(base64Image) {
+            let retries = 0;
+            const maxRetries = 5;
+
+            while (retries < maxRetries) {
+                try {
+                    const contacts = await callGeminiVision(base64Image);
+
+                    if (contacts && contacts.length > 0) {
+                        addContacts(contacts);
+                    }
+
+                    return true;
+                } catch (error) {
+                    if (error.message.includes('429') || error.message.includes('quota') || error.message.includes('rate')) {
+                        retries++;
+                        updateStatus(`Rate limit hit — waiting 60s (attempt ${retries}/${maxRetries})`);
+                        await countdown(60);
+                    } else {
+                        updateStatus(`Error: ${error.message}`);
+                        retries++;
+                        if (retries >= maxRetries) {
+                            updateStatus(`Failed after ${maxRetries} attempts. Skipping image.`);
+                            return true;
+                        }
+                        await countdown(5);
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        async function callGeminiVision(base64Image) {
+            const prompt = `You are an OCR expert. Analyze this handwritten contact list image carefully.
+
+TASK:
+1. Perform OCR on the handwritten text
+2. Identify all contacts with names and mobile numbers
+3. If text is in Gujarati, translate names to English
+4. Extract mobile numbers (must be exactly 10 digits)
+
+OUTPUT RULES:
+- Return ONLY a valid JSON array
+- No markdown, no code blocks, no explanations
+- Format: [{"name": "Person Name", "mobile": "1234567890"}]
+- Remove all spaces, dashes, symbols from mobile numbers
+- Only include contacts that have BOTH name and valid 10-digit mobile
+- If no contacts found, return []
+
+Extract the contacts now:`;
+
+            const requestBody = {
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        {
+                            inline_data: {
+                                mime_type: "image/jpeg",
+                                data: base64Image.split(',')[1]
+                            }
+                        }
+                    ]
+                }],
+                generationConfig: {
+                    temperature: 0.1,
+                    maxOutputTokens: 2048
+                }
+            };
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                if (response.status === 429) {
+                    throw new Error('429 Rate limit exceeded');
+                }
+                throw new Error(`API Error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+            }
+
+            const data = await response.json();
+
+            if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+                return [];
+            }
+
+            let textResponse = data.candidates[0].content.parts[0].text;
+
+            textResponse = textResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+            try {
+                const contacts = JSON.parse(textResponse);
+                return Array.isArray(contacts) ? contacts : [];
+            } catch (e) {
+                console.error('JSON parse error:', e, textResponse);
+                return [];
+            }
+        }
+
+        function addContacts(contacts) {
+            for (const contact of contacts) {
+                let name = contact.name ? contact.name.trim() : '';
+                let mobile = contact.mobile ? contact.mobile.toString().replace(/\D/g, '') : '';
+
+                if (!name || !mobile || mobile.length !== 10) {
+                    continue;
+                }
+
+                const isDuplicate = globalContacts.some(c => c.mobile === mobile);
+                if (isDuplicate) {
+                    continue;
+                }
+
+                const formattedName = `${cityName}-${name}`;
+
+                globalContacts.push({
+                    name: formattedName,
+                    mobile: mobile
+                });
+
+                globalContactIndex++;
+            }
+        }
+
+        function generateVCF() {
+            let vcf = '';
+
+            for (const contact of globalContacts) {
+                vcf += 'BEGIN:VCARD\n';
+                vcf += 'VERSION:3.0\n';
+                vcf += `N:${contact.name};;;;\n`;
+                vcf += `FN:${contact.name}\n`;
+                vcf += `TEL;TYPE=CELL:${contact.mobile}\n`;
+                vcf += 'END:VCARD\n';
+            }
+
+            return vcf;
+        }
+
+        function finishProcessing() {
+            vcfData = generateVCF();
+
+            updateStatus(`✅ Complete! Processed ${totalImages} images, found ${globalContacts.length} unique contacts.`, true);
+            document.getElementById('generateBtn').disabled = false;
+
+            if (globalContacts.length > 0) {
+                document.getElementById('downloadBtn').classList.add('visible');
+            }
+        }
+
+        function downloadVCF() {
+            const blob = new Blob([vcfData], { type: 'text/vcard' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'contacts.vcf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function updateProgress() {
+            document.getElementById('progressText').textContent = `Processing image ${currentImageIndex + 1} of ${totalImages}`;
+        }
+
+        function updateStatus(message, isSuccess = false) {
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = message;
+            statusText.className = isSuccess ? 'status-text success' : 'status-text';
+        }
+
+        function countdown(seconds) {
+            return new Promise((resolve) => {
+                let remaining = seconds;
+                const countdownEl = document.getElementById('countdownText');
+
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                }
+
+                countdownEl.textContent = `Waiting ${remaining}s...`;
+
+                countdownInterval = setInterval(() => {
+                    remaining--;
+                    if (remaining > 0) {
+                        countdownEl.textContent = `Waiting ${remaining}s...`;
+                    } else {
+                        countdownEl.textContent = '';
+                        clearInterval(countdownInterval);
+                        resolve();
+                    }
+                }, 1000);
+            });
+        }
+    </script>
+</body>
+
+</html>
