@@ -187,6 +187,11 @@
         </div>
 
         <div class="input-group">
+            <label for="apiKeyInput">Gemini API Key</label>
+            <input type="password" id="apiKeyInput" placeholder="Paste your Gemini API key here">
+        </div>
+
+        <div class="input-group">
             <label for="fileInput">Select Contact Images</label>
             <input type="file" id="fileInput" multiple accept="image/*">
         </div>
@@ -208,14 +213,20 @@
         let currentImageIndex = 0;
         let totalImages = 0;
         let imageFiles = [];
-        let apiKey = 'AIzaSyC6ODvMuwkN2SztZX37GGOJmUrYBn745-s';
+        let apiKey = '';
         let cityName = '';
         let vcfData = '';
         let countdownInterval = null;
 
         async function startProcessing() {
             const fileInput = document.getElementById('fileInput');
+            apiKey = document.getElementById('apiKeyInput').value.trim();
             cityName = document.getElementById('cityInput').value.trim();
+
+            if (!apiKey) {
+                alert('Please enter your Gemini API key');
+                return;
+            }
 
             if (!cityName) {
                 alert('Please enter a city name');
