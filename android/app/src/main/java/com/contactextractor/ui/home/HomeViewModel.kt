@@ -12,7 +12,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 sealed class HomeUiState {
@@ -40,12 +42,11 @@ class HomeViewModel @Inject constructor(
         _uiState.value = HomeUiState.Processing()
         viewModelScope.launch {
             try {
-                val bytes = context.contentResolver.openInputStream(imageUri)?.readBytes()
-                    ?: run {
-                        _uiState.value = HomeUiState.Error("Could not read image")
-                        return@launch
-                    }
-                val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                val base64 = withContext(Dispatchers.IO) {
+                    val bytes = context.contentResolver.openInputStream(imageUri)?.readBytes()
+                        ?: throw IllegalStateException("Could not read image")
+                    Base64.encodeToString(bytes, Base64.NO_WRAP)
+                }
                 val apiKey = prefs.getGeminiApiKey()
                 val contacts = ocrRepository.extractContacts(
                     apiKey = apiKey,

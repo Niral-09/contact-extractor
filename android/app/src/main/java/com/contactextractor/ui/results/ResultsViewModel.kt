@@ -3,11 +3,13 @@ package com.contactextractor.ui.results
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.contactextractor.data.model.Contact
 import com.contactextractor.data.sheets.GoogleSheetsRepository
-import com.contactextractor.ui.home.ContactsHolder
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,12 +25,30 @@ sealed class SheetsUiState {
     data class Error(val message: String) : SheetsUiState()
 }
 
+private const val KEY_CONTACTS = "contacts_json"
+
 @HiltViewModel
 class ResultsViewModel @Inject constructor(
-    private val sheetsRepository: GoogleSheetsRepository
+    private val sheetsRepository: GoogleSheetsRepository,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val _contacts = MutableStateFlow(ContactsHolder.contacts.toMutableList())
+    private val gson = Gson()
+
+    private fun loadContacts(): MutableList<Contact> {
+        val json = savedStateHandle.get<String>(KEY_CONTACTS)
+        return if (json != null) {
+            val type = object : TypeToken<List<Contact>>() {}.type
+            gson.fromJson<List<Contact>>(json, type).toMutableList()
+        } else {
+            // First load — read from ContactsHolder and persist
+            val contacts = com.contactextractor.ui.home.ContactsHolder.contacts.toMutableList()
+            savedStateHandle[KEY_CONTACTS] = gson.toJson(contacts)
+            contacts
+        }
+    }
+
+    private val _contacts = MutableStateFlow(loadContacts())
     val contacts: StateFlow<List<Contact>> = _contacts.asStateFlow()
 
     private val _sheetsState = MutableStateFlow<SheetsUiState>(SheetsUiState.Idle)
@@ -38,18 +58,21 @@ class ResultsViewModel @Inject constructor(
         val list = _contacts.value.toMutableList()
         list[index] = updated
         _contacts.value = list
+        savedStateHandle[KEY_CONTACTS] = gson.toJson(list)
     }
 
     fun deleteContact(index: Int) {
         val list = _contacts.value.toMutableList()
         list.removeAt(index)
         _contacts.value = list
+        savedStateHandle[KEY_CONTACTS] = gson.toJson(list)
     }
 
     fun addContact() {
         val list = _contacts.value.toMutableList()
         list.add(Contact(name = "", mobile = "", city = ""))
         _contacts.value = list
+        savedStateHandle[KEY_CONTACTS] = gson.toJson(list)
     }
 
     fun exportVcf(context: Context) {
