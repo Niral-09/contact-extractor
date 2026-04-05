@@ -53,13 +53,20 @@ class GoogleSheetsRepository @Inject constructor(
         }
     }
 
+    private fun sanitizeSheetTitle(city: String): String {
+        // Sheets tab titles: max 100 chars, no \ / ? * [ ] or leading apostrophe
+        val forbidden = setOf('\\', '/', '?', '*', '[', ']')
+        val cleaned = city.filter { it !in forbidden }.trimStart('\'').take(100)
+        return cleaned.ifBlank { "Unknown" }
+    }
+
     suspend fun saveContacts(spreadsheetId: String, contacts: List<Contact>) =
         withContext(Dispatchers.IO) {
             val service = buildSheetsService()
             val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
             val existingSheets = spreadsheet.sheets.map { it.properties.title }
 
-            val byCity = contacts.groupBy { it.city.trim().ifBlank { "Unknown" } }
+            val byCity = contacts.groupBy { sanitizeSheetTitle(it.city) }
 
             val addSheetRequests = byCity.keys
                 .filter { it !in existingSheets }
@@ -83,7 +90,7 @@ class GoogleSheetsRepository @Inject constructor(
                 service.spreadsheets().values()
                     .append(
                         spreadsheetId,
-                        "$city!A1",
+                        "'${city.replace("'", "\\'")}'!A1",
                         ValueRange().setValues(values)
                     )
                     .setValueInputOption("RAW")

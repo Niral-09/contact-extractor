@@ -61,10 +61,14 @@ fun SettingsScreen(
         if (result.resultCode == Activity.RESULT_OK) {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             task.addOnSuccessListener { account ->
-                viewModel.onGoogleSignInSuccess(
-                    email = account.email ?: "",
-                    account = account.account!!
-                )
+                val androidAccount = account.account
+                if (androidAccount != null) {
+                    viewModel.onGoogleSignInSuccess(
+                        email = account.email ?: "",
+                        account = androidAccount
+                    )
+                }
+                // If account is null, sign-in silently fails — user remains unsigned in
             }
         }
     }

@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.contactextractor.data.model.Contact
+import com.contactextractor.data.prefs.SecurePrefsRepository
 import com.contactextractor.data.sheets.GoogleSheetsRepository
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -30,6 +31,7 @@ private const val KEY_CONTACTS = "contacts_json"
 @HiltViewModel
 class ResultsViewModel @Inject constructor(
     private val sheetsRepository: GoogleSheetsRepository,
+    private val prefs: SecurePrefsRepository,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -53,6 +55,8 @@ class ResultsViewModel @Inject constructor(
 
     private val _sheetsState = MutableStateFlow<SheetsUiState>(SheetsUiState.Idle)
     val sheetsState: StateFlow<SheetsUiState> = _sheetsState.asStateFlow()
+
+    val spreadsheetId: String get() = prefs.getSpreadsheetId()
 
     fun updateContact(index: Int, updated: Contact) {
         val list = _contacts.value.toMutableList()
